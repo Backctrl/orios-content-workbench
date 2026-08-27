@@ -1,0 +1,13 @@
+schemaVersion: 1
+updatedAt: 2026-08-23T18:44:59.810Z
+items:
+  - id: cand-20260823-001
+    title: 示例：AI 工作流如何持续产出
+    claim: 一次研究可拆成长文、图卡与视频三份产物
+    source:
+      kind: file
+      ref: 演示：待替换为真实素材来源
+    tags: []
+    status: converted
+    convertedTopic: 2026-08-示例-ai-工作流如何持续产出
+

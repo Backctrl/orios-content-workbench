@@ -1,0 +1,7 @@
+node_modules/
+*.tgz
+*.map
+.DS_Store
+Thumbs.db
+# 本地运行状态（不随仓库分发）
+内容创作/_工作台/creator-settings.json

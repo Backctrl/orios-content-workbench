@@ -1,0 +1,24 @@
+[
+  {
+    "gate": "brief_sources",
+    "approved": true,
+    "artifactHash": "sha256-ed5b48aa4c0be9e2",
+    "approvedAt": "2026-08-24T04:34:49.801Z"
+  },
+  {
+    "gate": "approved_article",
+    "approved": true,
+    "artifactHash": "sha256-a2e0d0a65a08b0ca",
+    "approvedAt": "2026-08-24T12:49:51.136Z"
+  },
+  {
+    "gate": "platform_variants",
+    "approved": false,
+    "artifactHash": ""
+  },
+  {
+    "gate": "publish_package",
+    "approved": false,
+    "artifactHash": ""
+  }
+]

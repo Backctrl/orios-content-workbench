@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>内容创作 · 设置与画像 · 发布</title>
+  <link rel="stylesheet" href="/api/worktable/template/dshell.css" />
+  <style>
+    body { margin: 0; }
+    .cw-topbar { display: flex; align-items: stretch; gap: 10px; padding: 6px 10px; flex-wrap: wrap; }
+    .cw-group { display: flex; align-items: center; gap: 6px; border: 1px solid rgba(128,128,128,.22); border-radius: 9px; padding: 5px 8px; background: rgba(255,255,255,.03); flex-wrap: wrap; }
+    .cw-groupTitle { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: #9da3ad; margin-right: 2px; }
+    .cw-grow { flex: 1; min-width: 0; }
+    .cw-sub { color: #9da3ad; font-size: 11px; }
+    .cw-err { color: #ef8d98; font-size: 12px; margin: 4px 10px; }
+    .cw-toggle { cursor: pointer; }
+    .cw-panel { display: none; border-top: 1px solid rgba(128,128,128,.18); padding: 8px 12px; background: rgba(255,255,255,.02); }
+    .cw-panel.open { display: block; }
+    .cw-form { display: grid; gap: 6px; margin-top: 8px; }
+    .cw-form label { display: grid; gap: 3px; font-size: 11px; color: #9da3ad; }
+    .cw-form input, .cw-form textarea { padding: 6px 8px; border-radius: 7px; border: 1px solid rgba(128,128,128,.35); background: rgba(255,255,255,.04); color: inherit; font: inherit; box-sizing: border-box; width: 100%; font-size: 12px; }
+    .cw-btnrow { display: flex; gap: 8px; margin-top: 8px; }
+    .cw-plats { display: flex; flex-direction: column; gap: 4px; }
+    .cw-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="dshell" style="padding:0">
+    <div class="cw-topbar">
+      <!-- 设置与画像 -->
+      <div class="cw-group">
+        <span class="cw-groupTitle">⚙ 设置与画像</span>
+        <span class="dshell-badge" id="cw-profile">—</span>
+        <span class="dshell-badge" id="cw-providers">—</span>
+        <button class="dshell-btn dshell-btnGhost cw-toggle" id="cw-toggle-profile">画像表单</button>
+      </div>
+      <!-- 发布 -->
+      <div class="cw-group cw-grow">
+        <span class="cw-groupTitle">🚀 发布</span>
+        <span class="dshell-badge" id="cw-topic">未选择主题</span>
+        <span class="dshell-badge" id="cw-pkg">—</span>
+        <span class="dshell-badge" id="cw-plat-w">—</span>
+        <span class="dshell-badge" id="cw-plat-x">—</span>
+        <span class="dshell-badge" id="cw-plat-d">—</span>
+        <button class="dshell-btn dshell-btnGhost cw-toggle" id="cw-toggle-publish">发布清单</button>
+      </div>
+    </div>
+
+    <div class="cw-err" id="cw-error" style="display:none"></div>
+
+    <!-- 画像表单面板 -->
+    <div class="cw-panel" id="cw-panel-profile">
+      <div class="cw-form">
+        <label>账号定位（做什么内容、给谁看）<input id="p-positioning" placeholder="例如：AI 工作流科普，面向独立创作者" /></label>
+        <label>目标读者<input id="p-audience" placeholder="例如：希望稳定更新的独立创作者" /></label>
+        <label>语气/风格<input id="p-tone" placeholder="例如：务实、口语化、少术语" /></label>
+        <label>常用选题方向（逗号分隔）<input id="p-directions" placeholder="例如：AI 工具、创作方法论" /></label>
+        <label>选题筛选标准（Agent 据定位生成，可留空）<textarea id="p-criteria" rows="2" placeholder="留空时 Agent 会依据上方字段生成简易模板"></textarea></label>
+        <div class="cw-btnrow">
+          <button class="dshell-btn" id="p-save">保存画像</button>
+          <span class="cw-sub cw-grow" id="p-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 发布清单面板 -->
+    <div class="cw-panel" id="cw-panel-publish">
+      <div class="cw-plats" id="cw-plats"></div>
+      <div class="cw-sub" style="margin-top:8px">发布待执行清单（publish/PENDING.md）</div>
+      <div id="cw-pending"></div>
+    </div>
+  </div>
+
+  <script src="./creator-common.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      var C = window.CW;
+      var current = null;
+      var detail = null;
+      var folder = null;
+      var settings = null;
+
+      function el(id) { return document.getElementById(id); }
+      function setBadge(id, text, done) {
+        var node = el(id);
+        node.textContent = text;
+        node.className = 'dshell-badge' + (done === undefined ? '' : done ? ' dshell-badgeDone' : ' dshell-badgeWait');
+      }
+      function showError(err) {
+        var node = el('cw-error');
+        node.style.display = 'block';
+        node.textContent = (err && err.message ? err.message : String(err));
+      }
+
+      async function load() {
+        try {
+          var caps = await C.getCapabilities();
+          var profileRes = await C.getProfile();
+          var configured = !!profileRes.configured || !!profileRes.profile && Object.keys(profileRes.profile).length > 0;
+          setBadge('cw-profile', configured ? '账号画像已配置' : '账号画像未配置', configured);
+          settings = await C.getSettings();
+          var configuredCount = (settings.statuses || []).filter(function (s) { return s.status === 'configured'; }).length;
+          setBadge('cw-providers', 'Provider ' + configuredCount + '/' + (settings.statuses || []).length, configuredCount > 0);
+          if (current) await loadTopic();
+          el('cw-error').style.display = 'none';
+        } catch (err) { showError(err); }
+      }
+
+      async function loadTopic() {
+        try {
+          detail = await C.getProject(current);
+          var caps = await C.getCapabilities();
+          if (caps.repositoryMode === 'file' && caps.contentRoot) {
+            folder = caps.contentRoot + '/' + detail.month + '/' + detail.plannedAt + '_' + detail.slug;
+          } else { folder = null; }
+          setBadge('cw-topic', detail.title || current, true);
+          var pkgReady = (detail.artifacts || []).some(function (a) { return a.path === 'publish/package.json' && a.ready; });
+          setBadge('cw-pkg', '发布包 ' + (pkgReady ? '已生成' : '未生成'), pkgReady);
+          var aReady = (detail.article || '').trim().length > 0;
+          var xReady = (detail.xhsCopy || '').trim().length > 0;
+          var dReady = (detail.artifacts || []).some(function (a) { return a.path === 'video/final.mp4' && a.ready; });
+          setBadge('cw-plat-w', '公众号 ' + (aReady ? '就绪' : '缺'), aReady);
+          setBadge('cw-plat-x', '小红书 ' + (xReady ? '就绪' : '缺'), xReady);
+          setBadge('cw-plat-d', '抖音/视频号 ' + (dReady ? '就绪' : '缺'), dReady);
+          renderPlats(pkgReady);
+          renderPending();
+        } catch (err) { showError(err); }
+      }
+
+      function renderPlats(pkgReady) {
+        var box = el('cw-plats');
+        box.innerHTML = '';
+        if (!detail) return;
+        var rows = [
+          ['W 公众号', 'wechat/article.md', (detail.article || '').trim().length > 0],
+          ['X 小红书', 'xhs/post.md + xhs/cards/', (detail.xhsCopy || '').trim().length > 0],
+          ['D 抖音/视频号', 'video/final.mp4', (detail.artifacts || []).some(function (a) { return a.path === 'video/final.mp4' && a.ready; })],
+        ];
+        rows.forEach(function (r) {
+          var item = C.h('<div class="dshell-listItem" style="padding:3px 6px"><span class="dshell-listItemTitle" style="font-size:12px">' + r[0] + '</span><span class="dshell-listItemMeta">' + r[1] + '</span></div>');
+          item.appendChild(C.badge(r[2] ? '素材就绪' : '缺少素材', r[2]));
+          box.appendChild(item);
+        });
+        var gate = C.gatesOf(detail).publish_package;
+        var g = C.h('<div class="dshell-listItem" style="padding:3px 6px"><span class="dshell-listItemTitle" style="font-size:12px">发布包闸门</span></div>');
+        g.appendChild(C.badge(gate ? '已批准' : '待批准', gate));
+        box.appendChild(g);
+      }
+
+      async function renderPending() {
+        var box = el('cw-pending');
+        box.innerHTML = '';
+        if (!folder) { box.appendChild(C.h('<div class="cw-sub">mock 模式无真实目录。</div>')); return; }
+        try {
+          var text = await C.readFile(folder + '/publish/PENDING.md');
+          box.appendChild(C.h('<pre style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:#9da3ad;margin:0;font-family:inherit">' + C.esc(text || '（暂无待执行清单：生成发布包后出现）') + '</pre>'));
+        } catch (e) {
+          box.appendChild(C.h('<div class="cw-sub">（无法读取发布待执行清单：' + C.esc(e.message) + '）</div>'));
+        }
+      }
+
+      function fillForm(p) {
+        el('p-positioning').value = p.positioning || '';
+        el('p-audience').value = p.targetAudience || '';
+        el('p-tone').value = p.tone || '';
+        el('p-directions').value = (p.directions || []).join('、');
+        el('p-criteria').value = p.selectionCriteria || '';
+      }
+
+      function togglePanel(id, btnId) {
+        var panel = el(id);
+        var open = !panel.classList.contains('open');
+        panel.classList.toggle('open', open);
+        el(btnId).textContent = open ? '收起' : (btnId === 'cw-toggle-profile' ? '画像表单' : '发布清单');
+      }
+
+      el('cw-toggle-profile').addEventListener('click', function () { togglePanel('cw-panel-profile', 'cw-toggle-profile'); });
+      el('cw-toggle-publish').addEventListener('click', function () { togglePanel('cw-panel-publish', 'cw-toggle-publish'); });
+
+      el('p-save').addEventListener('click', async function () {
+        var msg = el('p-msg');
+        msg.textContent = '保存中…';
+        try {
+          var patch = {
+            positioning: el('p-positioning').value.trim(),
+            targetAudience: el('p-audience').value.trim(),
+            tone: el('p-tone').value.trim(),
+            directions: el('p-directions').value.split(/[、,]/).map(function (s) { return s.trim(); }).filter(Boolean),
+            selectionCriteria: el('p-criteria').value.trim(),
+          };
+          var res = await C.saveProfile(patch);
+          fillForm(res.profile || {});
+          setBadge('cw-profile', '账号画像已配置', true);
+          msg.textContent = '已保存；Agent 会据此生成选题筛选标准。';
+        } catch (err) { msg.textContent = err.message; }
+      });
+
+      C.onTopicChange(function (id) {
+        current = id;
+        if (!id) { setBadge('cw-topic', '未选择主题', false); return; }
+        void loadTopic();
+      });
+      C.onRevision(function () { void load(); });
+
+      // 预填画像表单（首次打开时）
+      C.getProfile().then(function (res) { fillForm(res.profile || {}); }).catch(function () {});
+      void load();
+    })();
+  </script>
+</body>
+</html>

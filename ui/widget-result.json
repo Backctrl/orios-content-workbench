@@ -1,0 +1,6 @@
+[
+  {"window": "窗口1", "path": "creator-topbar.html", "kind": "html", "rev": 2},
+  {"window": "窗口2", "path": "content-workbench-widget.html", "kind": "html", "rev": 2},
+  {"window": "窗口3", "path": "creator-topic-editor.html", "kind": "html", "rev": 2},
+  {"window": "窗口4", "path": "creator-preview.html", "kind": "html", "rev": 2}
+]

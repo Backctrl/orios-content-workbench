@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>内容创作 · 配图及视频预览</title>
+  <link rel="stylesheet" href="/api/worktable/template/dshell.css" />
+  <style>
+    .cw-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 10px 0; }
+    .cw-tab { border: 1px solid rgba(128,128,128,.3); background: transparent; color: inherit; border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12px; }
+    .cw-tab.on { background: rgba(124,140,255,.2); border-color: rgba(124,140,255,.5); }
+    .cw-toolbar { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+    .cw-grow { flex: 1; min-width: 0; }
+    .cw-sub { color: #9da3ad; font-size: 11px; }
+    .cw-err { color: #ef8d98; font-size: 12px; margin: 6px 0; }
+    .cw-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .cw-thumb { width: 120px; border: 1px solid rgba(128,128,128,.25); border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.04); }
+    .cw-thumb img { width: 100%; display: block; }
+    .cw-thumb span { display: block; padding: 4px 6px; font-size: 10px; color: #9da3ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cw-preview-frame { width: 100%; height: 460px; border: 1px solid rgba(128,128,128,.22); border-radius: 9px; background: #fff; margin-top: 10px; }
+    .cw-video { width: 100%; max-height: 460px; border-radius: 9px; background: #000; margin-top: 8px; }
+    .cw-card { margin-top: 12px; padding: 12px; border: 1px solid rgba(128,128,128,.22); border-radius: 10px; background: rgba(255,255,255,.03); }
+  </style>
+</head>
+<body>
+  <div class="dshell">
+    <h1 class="dshell-title">内容创作 · 配图及视频预览</h1>
+    <p class="dshell-sub">公众号配图 / 小红书图卡 / 视频成片的预览与生成 · 数据直连 /creator/api</p>
+
+    <div class="cw-toolbar">
+      <span class="dshell-badge" id="cw-topic">未选择主题</span>
+    </div>
+    <div class="cw-tabs">
+      <button class="cw-tab on" data-tab="article">公众号配图</button>
+      <button class="cw-tab" data-tab="xhs">小红书图卡</button>
+      <button class="cw-tab" data-tab="video">视频预览</button>
+    </div>
+    <div id="cw-content"></div>
+    <div class="cw-err" id="cw-error" style="display:none"></div>
+  </div>
+
+  <script src="./creator-common.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      var C = window.CW;
+      var current = null;
+      var detail = null;
+      var folder = null;
+      var tab = 'article';
+
+      function el(id) { return document.getElementById(id); }
+      function setBadge(id, text, done) {
+        var node = el(id);
+        node.textContent = text;
+        node.className = 'dshell-badge' + (done === undefined ? '' : done ? ' dshell-badgeDone' : ' dshell-badgeWait');
+      }
+      function showError(err) {
+        var node = el('cw-error');
+        node.style.display = 'block';
+        node.textContent = (err && err.message ? err.message : String(err));
+      }
+      function enc(p) { return encodeURIComponent(p); }
+      function siteUrl(rel) {
+        if (!folder) return null;
+        return '/api/worktable/site/' + enc(folder) + '/' + rel.split('/').map(enc).join('/');
+      }
+
+      async function load() {
+        if (!current) {
+          setBadge('cw-topic', '未选择主题', false);
+          el('cw-content').innerHTML = '<div class="cw-sub">请先在「总览与选题库」窗口点击一个主题。</div>';
+          return;
+        }
+        try {
+          detail = await C.getProject(current);
+          var caps = await C.getCapabilities();
+          if (caps.repositoryMode === 'file' && caps.contentRoot) {
+            folder = caps.contentRoot + '/' + detail.month + '/' + detail.plannedAt + '_' + detail.slug;
+          } else { folder = null; }
+          setBadge('cw-topic', detail.title || current, true);
+          render();
+          el('cw-error').style.display = 'none';
+        } catch (err) { showError(err); }
+      }
+
+      function render() {
+        var host = el('cw-content');
+        host.innerHTML = '';
+        if (tab === 'article') renderArticle(host);
+        else if (tab === 'xhs') renderXhs(host);
+        else if (tab === 'video') renderVideo(host);
+      }
+
+      function renderArticle(host) {
+        var bar = C.h('<div class="cw-toolbar"><span class="cw-sub cw-grow">wechat/images/ · 公众号配图</span><button class="dshell-btn dshell-btnGhost" id="cw-img-gen">生成配图</button></div>');
+        host.appendChild(bar);
+        var card = C.h('<div class="cw-card" id="cw-article-gen" style="display:none"><h2 class="dshell-sub" style="margin:0 0 6px">生成公众号配图</h2><input id="cw-img-prompt" placeholder="画面提示词（内容/风格/构图）" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit"/><div class="cw-btnrow" style="margin-top:8px"><button class="dshell-btn" id="cw-img-go">生成</button><span class="cw-sub cw-grow" id="cw-img-msg"></span></div></div>');
+        host.appendChild(card);
+        bar.querySelector('#cw-img-gen').addEventListener('click', function () { card.style.display = card.style.display === 'none' ? 'block' : 'none'; });
+        card.querySelector('#cw-img-go').addEventListener('click', async function () {
+          var msg = card.querySelector('#cw-img-msg');
+          var prompt = card.querySelector('#cw-img-prompt').value.trim();
+          if (!prompt) { msg.textContent = '请填写画面提示词'; return; }
+          msg.textContent = '生成中…（需图像 Provider 已配置）';
+          try {
+            var res = await C.generateImage(detail.id, prompt, 'article');
+            msg.textContent = '已生成 ' + res.count + ' 张：' + res.saved.join('、');
+            renderArticle(host);
+          } catch (err) { msg.textContent = err.message; }
+        });
+
+        var thumbs = C.h('<div class="cw-thumbs" id="cw-article-imgs"></div>');
+        host.appendChild(thumbs);
+        listImages(folder + '/wechat/images', thumbs, '公众号配图暂无：在上方「生成配图」输入提示词生成。');
+
+        var previewReady = (detail.artifacts || []).some(function (a) { return a.path === 'publish/preview.html' && a.ready; });
+        var galTitle = C.h('<h2 class="dshell-sub" style="margin:14px 0 4px">微信排版预览（wewrite gallery）</h2>');
+        host.appendChild(galTitle);
+        if (previewReady && folder) {
+          host.appendChild(C.h('<iframe class="cw-preview-frame" src="' + siteUrl('publish/preview.html') + '"></iframe>'));
+        } else {
+          host.appendChild(C.h('<div class="cw-sub">尚未生成排版预览：在「内容编辑」窗口的发布页生成发布包，或运行 wewrite gallery 生成 publish/preview.html。</div>'));
+        }
+      }
+
+      function renderXhs(host) {
+        var cardsReady = (detail.artifacts || []).some(function (a) { return a.path === 'xhs/cards/' && a.ready; });
+        var bar = C.h('<div class="cw-toolbar">' + (cardsReady ? '<span class="dshell-badge dshell-badgeDone">图卡就绪</span>' : '<span class="dshell-badge dshell-badgeWait">图卡待生成</span>') + '<span class="cw-sub cw-grow">xhs/cards/ · 小红书图卡</span></div>');
+        host.appendChild(bar);
+        var gen = C.h('<div class="cw-card" style="margin-top:8px"><h2 class="dshell-sub" style="margin:0 0 6px">生成图卡</h2><input id="cw-xhs-prompt" placeholder="画面提示词（内容/风格/构图），例如：主题一句话 + 4 张事实卡 3:4" style="width:100%;box-sizing:border-box;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit"/><div class="cw-btnrow" style="margin-top:8px"><button class="dshell-btn" id="cw-xhs-gen">生成图卡</button><span class="cw-sub cw-grow" id="cw-xhs-msg"></span></div></div>');
+        host.appendChild(gen);
+        gen.querySelector('#cw-xhs-gen').addEventListener('click', async function () {
+          var msg = gen.querySelector('#cw-xhs-msg');
+          var prompt = gen.querySelector('#cw-xhs-prompt').value.trim();
+          if (!prompt) { msg.textContent = '请填写画面提示词'; return; }
+          msg.textContent = '生成中…（需图像 Provider 已配置）';
+          try {
+            var res = await C.generateImage(detail.id, prompt, 'cards');
+            msg.textContent = '已生成 ' + res.count + ' 张：' + res.saved.join('、');
+            renderXhs(host);
+          } catch (err) { msg.textContent = err.message; }
+        });
+        var thumbs = C.h('<div class="cw-thumbs" id="cw-xhs-cards"></div>');
+        host.appendChild(thumbs);
+        listImages(folder + '/xhs/cards', thumbs, '暂无图卡：上方输入提示词生成；「平台变体」阶段也会写入 xhs/cards/PENDING.md。');
+      }
+
+      function renderVideo(host) {
+        var ready = function (path) { return (detail.artifacts || []).some(function (a) { return a.path === path && a.ready; }); };
+        var sceneReady = ready('video/scenes.json');
+        var captionsReady = ready('video/captions.json');
+        var finalReady = ready('video/final.mp4');
+        var bar = C.h('<div class="cw-toolbar"></div>');
+        bar.appendChild(C.badge('场景 ' + (sceneReady ? '就绪' : '缺失'), sceneReady));
+        bar.appendChild(C.badge('字幕 ' + (captionsReady ? '就绪' : '缺失'), captionsReady));
+        bar.appendChild(C.badge('成片 ' + (finalReady ? '就绪' : '待渲染'), finalReady));
+        bar.appendChild(C.h('<span class="cw-sub cw-grow">video/ · 场景/字幕生成与成片预览</span>'));
+        var genBtn = C.h('<button class="dshell-btn dshell-btnGhost" id="cw-genvideo">生成场景与字幕</button>');
+        bar.appendChild(genBtn);
+        host.appendChild(bar);
+        genBtn.addEventListener('click', async function () {
+          try { detail = await C.runStage(detail.id, 'video'); render(); }
+          catch (err) { showError(err); }
+        });
+
+        if (finalReady && folder) {
+          host.appendChild(C.h('<video class="cw-video" controls src="' + siteUrl('video/final.mp4') + '"></video>'));
+        } else {
+          host.appendChild(C.h('<div class="cw-sub" style="margin-top:8px">成片尚未渲染：先生成场景与字幕（上方按钮），再用 Remotion Provider 渲染 video/final.mp4。脚本编辑与查重在「内容编辑」窗口的视频页。</div>'));
+        }
+
+        var docs = C.h('<div class="cw-card" style="margin-top:12px"><h2 class="dshell-sub" style="margin:0 0 6px">场景与字幕（scenes.json / captions.json）</h2><div class="cw-sub" id="cw-video-docs">读取中…</div></div>');
+        host.appendChild(docs);
+        (async function () {
+          var box = docs.querySelector('#cw-video-docs');
+          if (!folder) { box.textContent = 'mock 模式无真实目录。'; return; }
+          var out = [];
+          try {
+            var scenes = await C.readFile(folder + '/video/scenes.json');
+            out.push('<b style="font-weight:600">scenes.json</b>');
+            out.push('<pre style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:#9da3ad;margin:2px 0 8px;font-family:inherit">' + C.esc(scenes.slice(0, 4000)) + (scenes.length > 4000 ? '\n…（截断）' : '') + '</pre>');
+          } catch { out.push('<div class="cw-sub">scenes.json 尚未生成。</div>'); }
+          try {
+            var caps = await C.readFile(folder + '/video/captions.json');
+            out.push('<b style="font-weight:600">captions.json</b>');
+            out.push('<pre style="white-space:pre-wrap;font-size:11px;line-height:1.6;color:#9da3ad;margin:2px 0 8px;font-family:inherit">' + C.esc(caps.slice(0, 4000)) + (caps.length > 4000 ? '\n…（截断）' : '') + '</pre>');
+          } catch { out.push('<div class="cw-sub">captions.json 尚未生成。</div>'); }
+          box.innerHTML = out.join('');
+        })();
+
+        var pending = C.h('<div class="cw-card"><h2 class="dshell-sub" style="margin:0 0 6px">视频待执行清单（PENDING.md）</h2><div class="cw-sub" id="cw-pending-video">读取中…</div></div>');
+        host.appendChild(pending);
+        if (!folder) { pending.querySelector('#cw-pending-video').textContent = 'mock 模式无真实目录。'; }
+        else {
+          C.readFile(folder + '/video/PENDING.md').then(function (text) {
+            pending.querySelector('#cw-pending-video').innerHTML = '';
+            pending.querySelector('#cw-pending-video').appendChild(C.h('<pre style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:#9da3ad;margin:0;font-family:inherit">' + C.esc(text || '（暂无待执行清单，运行「视频」阶段生成）') + '</pre>'));
+          }).catch(function (e) {
+            pending.querySelector('#cw-pending-video').textContent = '（无法读取待执行清单：' + e.message + '）';
+          });
+        }
+      }
+
+      function listImages(dir, box, emptyText) {
+        if (!folder) {
+          box.appendChild(C.h('<div class="cw-sub">mock 模式无真实目录。</div>'));
+          return;
+        }
+        fetch('/api/worktable/fs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: dir }) })
+          .then(function (r) { return r.json().catch(function () { return { entries: [] }; }); })
+          .then(function (data) {
+            var imgs = (data.entries || []).filter(function (e) { return !e.isDir && /\.(png|jpe?g|webp)$/i.test(e.name); });
+            if (imgs.length === 0) {
+              box.appendChild(C.h('<div class="cw-sub">' + C.esc(emptyText) + '</div>'));
+              return;
+            }
+            imgs.forEach(function (e) {
+              var t = C.h('<div class="cw-thumb"><a target="_blank" rel="noopener" style="display:block" title="新标签页打开原图"><img loading="lazy" alt=""/></a><span></span></div>');
+              var src = siteUrl((dir.indexOf('/wechat/') >= 0 ? 'wechat/images/' : 'xhs/cards/') + e.name);
+              t.querySelector('a').href = src;
+              t.querySelector('img').src = src;
+              t.querySelector('span').textContent = e.name;
+              box.appendChild(t);
+            });
+          })
+          .catch(function () { box.appendChild(C.h('<div class="cw-sub">读取目录失败。</div>')); });
+      }
+
+      document.querySelectorAll('.cw-tab').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          tab = btn.getAttribute('data-tab');
+          document.querySelectorAll('.cw-tab').forEach(function (b) { b.classList.remove('on'); });
+          btn.classList.add('on');
+          render();
+        });
+      });
+
+      C.onTopicChange(function (id) { current = id; void load(); });
+      C.onRevision(function () { if (current) void load(); });
+    })();
+  </script>
+</body>
+</html>

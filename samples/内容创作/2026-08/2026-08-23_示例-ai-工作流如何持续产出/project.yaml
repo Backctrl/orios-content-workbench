@@ -1,0 +1,13 @@
+schemaVersion: 1
+id: 2026-08-示例-ai-工作流如何持续产出
+title: 示例：AI 工作流如何持续产出
+slug: 示例-ai-工作流如何持续产出
+plannedAt: 2026-08-23
+stage: variants
+status: ready
+nextAction: 审阅公众号长文并批准表达锚点
+targets:
+  - wechat_article
+  - xhs_graphic
+  - douyin_video
+  - wechat_channels_video

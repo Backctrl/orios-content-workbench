@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>内容创作 · 总览与选题库</title>
+  <link rel="stylesheet" href="/api/worktable/template/dshell.css" />
+  <style>
+    .cw-toolbar { display: flex; align-items: center; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+    .cw-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .cw-grow { flex: 1; min-width: 0; }
+    .cw-detail { padding: 10px 4px 4px; display: none; }
+    .cw-detail.open { display: block; }
+    .cw-form { display: grid; gap: 8px; margin-top: 10px; }
+    .cw-form input { padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(128,128,128,.35); background: rgba(255,255,255,.04); color: inherit; font: inherit; box-sizing: border-box; width: 100%; }
+    .cw-err { color: #ef8d98; font-size: 12px; margin: 6px 0; }
+    .cw-sub { color: #9da3ad; font-size: 11px; }
+    .cw-btnrow { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .cw-progress { height: 4px; border-radius: 2px; background: rgba(128,128,128,.18); overflow: hidden; margin: 6px 0; }
+    .cw-progress > div { height: 100%; background: #7c8cff; }
+  </style>
+</head>
+<body>
+  <div class="dshell">
+    <h1 class="dshell-title">内容创作 · 总览与选题库</h1>
+    <p class="dshell-sub">四级闸门：Brief 与来源 → 公众号长文 → 平台变体 → 发布包 · 点主题在「内容编辑」窗口打开 · 数据直连 /creator/api</p>
+
+    <div class="cw-row">
+      <span class="dshell-badge" id="cw-mode">连接中…</span>
+      <span class="dshell-badge" id="cw-root">—</span>
+      <span class="dshell-badge" id="cw-profile">—</span>
+      <span class="dshell-badge dshell-badgeDone" id="cw-sync">实时同步开</span>
+    </div>
+
+    <div class="dshell-grid" style="margin-top:12px">
+      <div class="dshell-stat"><div class="dshell-statLabel">主题</div><div class="dshell-statValue" id="cw-stat-topics">—</div><div class="dshell-statDelta" id="cw-stat-topics-delta"></div></div>
+      <div class="dshell-stat"><div class="dshell-statLabel">待批准闸门</div><div class="dshell-statValue" id="cw-stat-gates">—</div><div class="dshell-statDelta" id="cw-stat-gates-delta"></div></div>
+      <div class="dshell-stat"><div class="dshell-statLabel">候选选题</div><div class="dshell-statValue" id="cw-stat-candidates">—</div><div class="dshell-statDelta" id="cw-stat-candidates-delta"></div></div>
+    </div>
+
+    <div class="dshell-tabs" style="margin-top:14px">
+      <button class="dshell-tab dshell-tabOn" data-tab="topics">主题</button>
+      <button class="dshell-tab" data-tab="candidates">选题库</button>
+      <button class="dshell-tab" data-tab="todo">待办</button>
+    </div>
+
+    <!-- 主题 -->
+    <div id="cw-pane-topics">
+      <div class="cw-toolbar">
+        <input id="cw-search" placeholder="搜索主题…" style="flex:1;min-width:120px;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit" />
+        <button class="dshell-btn" id="cw-create">＋ 新建主题</button>
+        <button class="dshell-btn dshell-btnGhost" id="cw-refresh">刷新</button>
+        <button class="dshell-btn dshell-btnGhost" id="cw-view-toggle">看板视图</button>
+      </div>
+      <div class="cw-sub" id="cw-topics-summary" style="margin:6px 0"></div>
+      <div id="cw-topics-list"></div>
+    </div>
+
+    <!-- 选题库 -->
+    <div id="cw-pane-candidates" style="display:none">
+      <div class="cw-sub" style="margin:10px 0 6px" id="cw-candidates-summary"></div>
+      <div id="cw-candidates-list"></div>
+      <div class="dshell-divider" style="margin:12px 0"></div>
+      <h2 class="dshell-sub" style="margin:0 0 4px">添加候选选题</h2>
+      <div class="cw-form">
+        <input id="cw-c-title" placeholder="选题标题（如：AI 工作流如何持续产出）" />
+        <input id="cw-c-claim" placeholder="一句话核心主张（可核验）" />
+        <input id="cw-c-ref" placeholder="来源引用（表格记录 id / 知识库页面 / 路径 / 链接）" />
+        <div class="cw-btnrow"><button class="dshell-btn" id="cw-c-submit">加入选题库</button><span class="cw-sub cw-grow" id="cw-c-msg"></span></div>
+      </div>
+    </div>
+
+    <!-- 待办 -->
+    <div id="cw-pane-todo" style="display:none">
+      <div class="cw-sub" style="margin:10px 0 6px">按闸门顺序列出每个主题的下一步；审批请在「内容编辑」窗口进行。</div>
+      <div id="cw-todo-list"></div>
+    </div>
+
+    <div class="cw-err" id="cw-error" style="display:none"></div>
+  </div>
+
+  <script src="./creator-common.js"></script>
+  <script>
+    (function () {
+      'use strict';
+      var C = window.CW;
+      var tab = 'topics';
+      var board = false;
+      var query = '';
+      var projects = [];
+      var candidates = [];
+      var profile = {};
+
+      function el(id) { return document.getElementById(id); }
+      function setBadge(id, text, done) {
+        var node = el(id);
+        node.textContent = text;
+        node.className = 'dshell-badge' + (done === undefined ? '' : done ? ' dshell-badgeDone' : ' dshell-badgeWait');
+      }
+
+      function renderStats() {
+        var pendingGates = 0;
+        projects.forEach(function (p) { (p.approvals || []).forEach(function (g) { if (!g.approved) pendingGates++; }); });
+        var pendingCands = candidates.filter(function (c) { return c.status === 'pending' || c.status === 'selected'; }).length;
+        el('cw-stat-topics').textContent = projects.length;
+        el('cw-stat-topics-delta').textContent = '就绪产物 ' + projects.reduce(function (n, p) { return n + C.artifactsReady(p); }, 0);
+        el('cw-stat-gates').textContent = pendingGates;
+        el('cw-stat-gates-delta').textContent = '个未批准';
+        el('cw-stat-candidates').textContent = candidates.length;
+        el('cw-stat-candidates-delta').textContent = pendingCands + ' 个待选/已选';
+      }
+
+      function filteredProjects() {
+        var needle = query.trim().toLowerCase();
+        if (!needle) return projects;
+        return projects.filter(function (p) { return (p.title + ' ' + p.slug).toLowerCase().indexOf(needle) >= 0; });
+      }
+      function renderTopics() {
+        var list = el('cw-topics-list');
+        list.innerHTML = '';
+        var shown = filteredProjects();
+        el('cw-topics-summary').textContent = shown.length + ' / ' + projects.length + ' 个主题 · 点击在「内容编辑」窗口打开';
+        if (board) {
+          ['brief', 'article', 'variants', 'video', 'publish'].forEach(function (stage) {
+            var items = shown.filter(function (p) { return p.stage === stage; });
+            if (items.length === 0) return;
+            list.appendChild(C.h('<div class="cw-sub" style="margin:8px 0 4px">' + (C.STAGE_LABEL[stage] || stage) + '（' + items.length + '）</div>'));
+            items.forEach(function (p) { list.appendChild(topicItem(p)); });
+          });
+        } else {
+          shown.slice().sort(function (a, b) { return b.plannedAt.localeCompare(a.plannedAt); }).forEach(function (p) { list.appendChild(topicItem(p)); });
+          if (shown.length === 0) list.appendChild(C.h('<div class="cw-sub">' + (projects.length === 0 ? '还没有主题：点「＋ 新建主题」，或先在「选题库」添加候选并转正。' : '没有匹配「' + C.esc(query) + '」的主题。') + '</div>'));
+        }
+      }
+
+      function topicItem(p) {
+        var item = C.h('<div class="dshell-listItem" style="cursor:pointer"><span class="dshell-listItemTitle"></span></div>');
+        item.querySelector('.dshell-listItemTitle').textContent = p.title;
+        item.appendChild(C.badge(C.STAGE_LABEL[p.stage] || p.stage, false));
+        item.appendChild(C.h('<span class="dshell-listItemMeta cw-grow" style="text-align:right">' + C.esc(p.nextAction || '') + '</span>'));
+        var detail = C.h('<div class="cw-detail"></div>');
+        detail.appendChild(C.h('<div class="cw-progress"><div style="width:' + Math.max(2, p.progress || 0) + '%"></div></div>'));
+        var kv = C.h('<div class="dshell-kv"></div>');
+        C.GATE_ORDER.forEach(function (g) {
+          var row = C.h('<div class="dshell-kvRow"><span class="dshell-kvKey"></span><span class="dshell-kvValue"></span></div>');
+          row.querySelector('.dshell-kvKey').textContent = C.GATE_LABEL[g];
+          row.querySelector('.dshell-kvValue').appendChild(C.badge(C.gatesOf(p)[g] ? '已批准' : '待批准', C.gatesOf(p)[g]));
+          kv.appendChild(row);
+        });
+        detail.appendChild(kv);
+        item.appendChild(detail);
+        item.addEventListener('click', function () {
+          C.setCurrentTopic(p.id);
+          detail.classList.toggle('open');
+        });
+        return item;
+      }
+
+      function renderCandidates() {
+        var list = el('cw-candidates-list');
+        list.innerHTML = '';
+        var selectedItems = candidates.filter(function (c) { return c.status === 'selected'; });
+        if (selectedItems.length > 0) {
+          var convertAll = C.h('<button class="dshell-btn" style="margin:8px 0 0">全部转正（' + selectedItems.length + '）</button>');
+          convertAll.addEventListener('click', async function () {
+            try {
+              for (var i = 0; i < selectedItems.length; i++) await C.convertCandidate(selectedItems[i].id);
+              await refresh();
+            } catch (err) { showError(err); }
+          });
+          list.appendChild(convertAll);
+        }
+        [['pending', '候选', false], ['selected', '已挑选', false], ['converted', '已转正', true]].forEach(function (group) {
+          var items = candidates.filter(function (c) { return c.status === group[0]; });
+          if (items.length === 0) return;
+          list.appendChild(C.h('<div class="cw-sub" style="margin:8px 0 4px">' + group[1] + '（' + items.length + '）</div>'));
+          items.forEach(function (c) {
+            var item = C.h('<div class="dshell-listItem"><span class="dshell-listItemTitle"></span></div>');
+            item.querySelector('.dshell-listItemTitle').textContent = c.title;
+            item.appendChild(C.h('<span class="dshell-listItemMeta cw-grow" style="text-align:right">' + C.esc(c.claim) + ' · ' + C.esc(c.source.ref) + '</span>'));
+            item.appendChild(C.badge(group[1], group[2]));
+            if (c.status !== 'converted') {
+              var b = C.h('<button class="dshell-btn dshell-btnGhost" style="margin-left:8px">' + (c.status === 'selected' ? '转正为主题' : '挑选') + '</button>');
+              b.addEventListener('click', async function (ev) {
+                ev.stopPropagation();
+                try {
+                  if (c.status === 'selected') { await C.convertCandidate(c.id); }
+                  else { await C.selectCandidates([c.id]); }
+                  await refresh();
+                } catch (err) { showError(err); }
+              });
+              item.appendChild(b);
+            } else if (c.convertedTopic) {
+              item.appendChild(C.h('<span class="cw-sub" style="margin-left:8px">→ ' + C.esc(c.convertedTopic) + '</span>'));
+            }
+            list.appendChild(item);
+          });
+        });
+        el('cw-candidates-summary').textContent = '候选 ' + candidates.filter(function (c) { return c.status === 'pending'; }).length +
+          ' · 已挑选 ' + candidates.filter(function (c) { return c.status === 'selected'; }).length +
+          ' · 已转正 ' + candidates.filter(function (c) { return c.status === 'converted'; }).length;
+      }
+
+      function renderTodo() {
+        var list = el('cw-todo-list');
+        list.innerHTML = '';
+        var rows = [];
+        projects.forEach(function (p) {
+          var next = C.nextGate(p);
+          if (next) rows.push({ order: C.GATE_ORDER.indexOf(next), title: p.title, id: p.id, gate: next });
+        });
+        rows.sort(function (a, b) { return a.order - b.order || a.title.localeCompare(b.title); });
+        rows.forEach(function (r) {
+          var item = C.h('<div class="dshell-listItem" style="cursor:pointer"><span class="dshell-listItemTitle"></span></div>');
+          item.querySelector('.dshell-listItemTitle').textContent = r.title + ' → 批准「' + C.GATE_LABEL[r.gate] + '」';
+          item.appendChild(C.badge(C.GATE_LABEL[r.gate], false));
+          item.addEventListener('click', function () { C.setCurrentTopic(r.id); });
+          list.appendChild(item);
+        });
+        if (rows.length === 0) list.appendChild(C.h('<div class="cw-sub">没有待批准闸门：所有主题都已走完审批链，去「内容编辑」窗口的发布页生成发布包。</div>'));
+      }
+
+      function render() {
+        renderStats();
+        renderTopics();
+        renderCandidates();
+        renderTodo();
+        el('cw-error').style.display = 'none';
+      }
+
+      function showError(err) {
+        var node = el('cw-error');
+        node.style.display = 'block';
+        node.textContent = '操作失败：' + (err && err.message ? err.message : String(err));
+      }
+
+      function setStatus() {
+        var mode = profile.repositoryMode || '';
+        setBadge('cw-mode', mode === 'file' ? '文件真源' : mode === 'mock' ? 'Mock 原型' : '连接中…', mode === 'file');
+        setBadge('cw-root', profile.contentRootConfigured ? 'contentRoot 已配置' : 'contentRoot 未配置', profile.contentRootConfigured === true);
+        setBadge('cw-profile', profile.profileConfigured ? '账号画像已配置' : '账号画像未配置', profile.profileConfigured === true);
+      }
+
+      async function refresh() {
+        try {
+          var caps = await C.getCapabilities();
+          profile = { repositoryMode: caps.repositoryMode, contentRootConfigured: caps.contentRootConfigured };
+          profile.profileConfigured = (await C.getProfile()).configured;
+          projects = await C.listProjects();
+          candidates = await C.listCandidates();
+          setStatus();
+          render();
+          setBadge('cw-sync', '实时同步开', true);
+        } catch (err) {
+          setBadge('cw-sync', '连接失败', false);
+          showError(err);
+        }
+      }
+
+      document.querySelectorAll('.dshell-tab').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          tab = btn.getAttribute('data-tab');
+          document.querySelectorAll('.dshell-tab').forEach(function (b) { b.classList.remove('dshell-tabOn'); });
+          btn.classList.add('dshell-tabOn');
+          ['topics', 'candidates', 'todo'].forEach(function (name) { el('cw-pane-' + name).style.display = name === tab ? 'block' : 'none'; });
+        });
+      });
+      el('cw-view-toggle').addEventListener('click', function () {
+        board = !board;
+        el('cw-view-toggle').textContent = board ? '列表视图' : '看板视图';
+        renderTopics();
+      });
+      el('cw-search').addEventListener('input', function () { query = el('cw-search').value; renderTopics(); });
+      el('cw-create').addEventListener('click', async function () {
+        var title = window.prompt('主题标题');
+        if (!title || !title.trim()) return;
+        var slug = title.trim().toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'new-topic';
+        try {
+          var created = await C.jpost('/projects', { title: title.trim(), slug: slug, plannedAt: new Date().toISOString().slice(0, 10) });
+          C.setCurrentTopic(created.id);
+          await refresh();
+        } catch (err) { showError(err); }
+      });
+      el('cw-refresh').addEventListener('click', function () { void refresh(); });
+      el('cw-c-submit').addEventListener('click', async function () {
+        var title = el('cw-c-title').value.trim();
+        var claim = el('cw-c-claim').value.trim();
+        var ref = el('cw-c-ref').value.trim();
+        var msg = el('cw-c-msg');
+        if (!title || !claim || !ref) { msg.textContent = '三项都要填'; return; }
+        msg.textContent = '提交中…';
+        try {
+          await C.addCandidate({ title: title, claim: claim, sourceKind: 'file', sourceRef: ref });
+          el('cw-c-title').value = ''; el('cw-c-claim').value = ''; el('cw-c-ref').value = '';
+          msg.textContent = '已加入选题库';
+          await refresh();
+        } catch (err) { msg.textContent = err.message; }
+      });
+
+      void refresh();
+      C.startPoller(refresh);
+    })();
+  </script>
+</body>
+</html>
