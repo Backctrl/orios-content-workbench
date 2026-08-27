@@ -1,9 +1,10 @@
 # 公众号写作执行标准（融合 WeWrite 方法论）
 
 > 本文档把 [imraywang/wewrite](https://github.com/imraywang/wewrite)（公众号内容全流程 Skill，v4.2.1）的
-> 执行标准融合进 OriOS 内容工作台的公众号写作环节。wewrite 完整模块文档（选题/写作/审稿/改写/配图/排版/发布/风格/数据）
-> 已复制到内容库 `_工作台/skills/wewrite*/`，CLI 在 `_工作台/wewrite-cli/`（`wewrite run/score/preview/hotspots` 等）。
-> 本标准是 `approved_article` 闸门的写作与验收依据，与 `output-contract.md`、`topic-pipeline.md` 配合使用。
+> 执行标准融合进 OriOS 内容工作台的公众号写作环节。wewrite 方法论已完整融合进本标准（选题三维评分 / 文章任务书 /
+> 主张清单来源规则 / 编辑五维质量 / 内容增强策略），不再单独安装 wewrite-* skill 副本（旧副本已清除，避免与融合标准重复）。
+> CLI 在 `_工作台/wewrite-cli/`（`wewrite run/score/preview/hotspots` 等）。
+> 本标准是 `approved_article` 闸门的写作与验收依据，与 `output-contract.md`、`topic-pipeline.md`、`creator-buddy-standard.md` 配合使用。
 
 ## 一、选题评估标准（选题库筛选）
 
