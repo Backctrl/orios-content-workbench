@@ -1,8 +1,26 @@
-# orios-content-workbench（npm 包：@orios/dsh-creator）
+# @orios/dsh-creator
 
-OriOS 面向 DeepSeek Harness 的内容连续生产工作台插件：原生 DSH 工作台入口 + dsh-worktable 多窗口界面（顶栏/总览/编辑/预览 + 右侧对话），四级人工审批闸门（选题 → 长文 → 变体 → 发布）。本仓库含插件源码、单元测试与示例素材（`samples/`）。
+OriOS 面向 DeepSeek Harness 的内容连续生产工作台。当前版本提供原生 DSH 工作台入口和本地文件内容仓库：
 
-功能概览：
+- 保留 DSH 原生侧栏和会话、任务看板、SSH、记忆系统、知识库、技能中心等功能；
+- 原生侧栏底部新增“内容库”入口，点击后以二级抽屉按月份浏览内容；
+- 选择主题后在 DSH 的 shell overlay 打开详情，不替换原生对话；
+- 中间编辑 Brief、公众号长文、小红书图卡和视频脚本；
+- 以四个审批闸门展示创作阶段；
+- 默认使用 mock repository；配置 `contentRoot` 后按月扫描真实主题文件夹；
+- 真实文件模式支持 Brief、公众号长文、小红书文案、视频脚本的安全原子写入，以及四级审批记录；
+- 工作台可以创建新的日期/slug 主题骨架；生成任务通过 DSH 原生对话交给 Agent；
+
+## 创作工作流（v0.3.0 融合 creator-buddy）
+
+工作台执行标准融合了 [SpaceZephyr/creator-buddy](https://github.com/SpaceZephyr/creator-buddy) 的创作方法论，映射进四级闸门流水线：
+
+- **情报先行**：`brief_sources` 阶段先做平台情报（搜热点 / 挖爆款 / 看评论 / 拆竞品），真实数据优先，拿不到就标注「未经数据验证」，不编造互动量级；
+- **卡点路由**：先判断卡在哪一环（定位 / 选题 / 写作 / 标题 / 封面 / 复盘）再选打法，不为走完流程硬插步骤；
+- **平台打法**：公众号六种写法路由 + 五约束 + AI 腔黑名单；小红书 7 类型正文 + 15 法标题矩阵 + 三层标签 + 发布前体检；视频去 AI 味口播 + 精确到秒分镜 + 落盘交接；
+- **复盘沉淀**：发布后六层漏斗归因（曝光→点击→完读→互动→涨粉→转化）+ 账号八维体检，可复用公式回写素材库与候选池。
+
+完整方法论见 `skills/orios-content-workflow/references/creator-buddy-standard.md`。
 
 ## 内容目录约定
 
