@@ -1,0 +1,27 @@
+{
+  "name": "global-content-search",
+  "version": "2.0.0",
+  "description": "全域内容搜索：优先基于 Agent Reach / 本地平台后端访问小红书、B站和抖音扩展入口，小红书支持 Guaikei API 兜底。",
+  "keywords": [
+    "小红书",
+    "B站",
+    "抖音",
+    "Agent Reach",
+    "Guaikei",
+    "爆款笔记",
+    "市场调研",
+    "数据挖掘",
+    "趋势监控",
+    "竞品分析",
+    "KOL营销",
+    "流量增长",
+    "用户画像"
+  ],
+  "license": "MIT",
+  "main": "src/xiaohongshu/search-cli.js",
+  "scripts": {
+    "search": "node src/xiaohongshu/search-cli.js",
+    "detail": "node src/xiaohongshu/detail-cli.js",
+    "post": "node src/xiaohongshu/post-cli.js"
+  }
+}

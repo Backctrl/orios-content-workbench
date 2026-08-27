@@ -1,8 +1,9 @@
 # creator-buddy 创作工作流融合标准
 
 > 来源：github.com/SpaceZephyr/creator-buddy（MIT）——公众号 / 小红书 / 视频三平台全栈创作 Skill 工具箱。
+> 完整子技能已 vendor 到本仓库 `vendor/creator-buddy/`（离线参考，见 vendor/README.md）。
 > 本文件把它「**情报先行 → 卡点路由 → 平台打法 → 复盘沉淀**」的方法论映射进 OriOS 内容工作台的四级闸门流水线。
-> 需要完整打法时拉取该仓库对应子技能的 `SKILL.md`（gzh-Skills/、xhs-Skills/、video-Skills/）。
+> 需要完整打法时，直接读 `vendor/creator-buddy/` 对应子技能的 `SKILL.md`（gzh-Skills/、xhs-Skills/、video-Skills/）。
 
 ## 一、总原则
 

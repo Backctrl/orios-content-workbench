@@ -20,7 +20,7 @@ OriOS 面向 DeepSeek Harness 的内容连续生产工作台。当前版本提�
 - **平台打法**：公众号六种写法路由 + 五约束 + AI 腔黑名单；小红书 7 类型正文 + 15 法标题矩阵 + 三层标签 + 发布前体检；视频去 AI 味口播 + 精确到秒分镜 + 落盘交接；
 - **复盘沉淀**：发布后六层漏斗归因（曝光→点击→完读→互动→涨粉→转化）+ 账号八维体检，可复用公式回写素材库与候选池。
 
-完整方法论见 `skills/orios-content-workflow/references/creator-buddy-standard.md`。
+完整方法论见 `skills/orios-content-workflow/references/creator-buddy-standard.md`；creator-buddy 的 31 个子技能已原样 vendor 到仓库 `vendor/creator-buddy/` 作为离线参考（来源与提交号见 `vendor/README.md`）。
 
 ## 内容目录约定
 
