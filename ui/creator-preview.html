@@ -29,6 +29,7 @@
 
     <div class="cw-toolbar">
       <span class="dshell-badge" id="cw-topic">未选择主题</span>
+      <button class="dshell-btn dshell-btnGhost" id="cw-focus" style="margin-left:auto" title="按需聚焦：放大本窗，再点恢复均分">⛶ 聚焦</button>
     </div>
     <div class="cw-tabs">
       <button class="cw-tab on" data-tab="article">公众号配图</button>
@@ -238,6 +239,13 @@
 
       C.onTopicChange(function (id) { current = id; void load(); });
       C.onRevision(function () { if (current) void load(); });
+      // 按需聚焦（本窗 = 主行第 3 列）
+      var focused = false;
+      el('cw-focus').addEventListener('click', function () {
+        focused = !focused;
+        C.focusPane('main', 2, 0.7, !focused);
+        el('cw-focus').textContent = focused ? '⛶ 还原' : '⛶ 聚焦';
+      });
     })();
   </script>
 </body>

@@ -28,6 +28,14 @@
     .cw-thumb span { display: block; padding: 3px 5px; font-size: 10px; color: #9da3ad; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .cw-progress { height: 4px; border-radius: 2px; background: rgba(128,128,128,.18); overflow: hidden; margin: 6px 0; }
     .cw-progress > div { height: 100%; background: #7c8cff; }
+    .cw-gate { border: 1px solid rgba(128,128,128,.25); background: transparent; color: inherit; border-radius: 7px; padding: 3px 9px; cursor: pointer; font-size: 11px; opacity: .65; }
+    .cw-gate:hover { opacity: 1; }
+    .cw-gate.on { opacity: 1; border-color: rgba(210,153,34,.7); background: rgba(210,153,34,.12); }
+    .cw-gate.done { opacity: 1; border-color: rgba(63,185,80,.45); color: #3fb950; }
+    .cw-pbRow { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 2px; }
+    .cw-pbTag { border: 1px solid rgba(128,128,128,.22); border-radius: 6px; padding: 2px 7px; font-size: 11px; cursor: pointer; background: rgba(255,255,255,.03); }
+    .cw-pbTag:hover { border-color: rgba(124,140,255,.5); }
+    .cw-pbTag.sel { border-color: rgba(124,140,255,.6); background: rgba(124,140,255,.14); }
   </style>
 </head>
 <body>
@@ -40,7 +48,11 @@
       <span class="dshell-badge" id="cw-progress-badge">—</span>
       <span class="dshell-badge" id="cw-save">—</span>
       <span class="cw-sub cw-grow" id="cw-next"></span>
+      <button class="dshell-btn dshell-btnGhost" id="cw-focus" title="按需聚焦：放大本窗，再点恢复均分">⛶ 聚焦</button>
     </div>
+
+    <!-- 四闸门进度条 -->
+    <div class="cw-gates" id="cw-gates" style="display:flex;gap:4px;margin:6px 0 2px;flex-wrap:wrap"></div>
 
     <div class="cw-tabs" id="cw-tabs"></div>
     <div id="cw-content"></div>
@@ -152,6 +164,7 @@
         setBadge('cw-progress-badge', detail.progress + '%', detail.progress >= 100);
         setBadge('cw-save', '已同步', true);
         el('cw-next').textContent = detail.nextAction || '';
+        renderGates();
         renderTabs();
         renderContent();
       }
@@ -208,6 +221,79 @@
         });
       }
 
+      // —— 四闸门进度条 ——
+      function renderGates() {
+        var host = el('cw-gates');
+        if (!host) return;
+        host.innerHTML = '';
+        if (!detail) return;
+        var gates = C.gatesOf(detail);
+        var nextIdx = -1;
+        C.GATE_ORDER.forEach(function (g, i) { if (!gates[g] && nextIdx < 0) nextIdx = i; });
+        C.GATE_ORDER.forEach(function (g, i) {
+          var b = C.h('<button class="cw-gate' + (gates[g] ? ' done' : i === nextIdx ? ' on' : '') + '">' + (gates[g] ? '✓ ' : '') + C.esc(C.GATE_LABEL[g]) + '</button>');
+          b.title = gates[g] ? '已批准（点击查看审批页）' : '待批准（点击查看审批页）';
+          b.addEventListener('click', function () { tab = 'approve'; renderTabs(); renderContent(); });
+          host.appendChild(b);
+        });
+      }
+
+      // —— 打法面板（折叠卡） ——
+      function pbCard(title, bodyHtml) {
+        var card = C.h('<div class="cw-card" style="margin-top:10px"><div class="cw-toolbar" style="margin:0"><span class="cw-sub cw-grow" style="font-weight:600">🎯 ' + title + '</span><button class="dshell-btn dshell-btnGhost" data-pb-toggle="1">打法速查 ▾</button></div><div data-pb-body style="display:none">' + bodyHtml + '</div></div>');
+        card.querySelector('[data-pb-toggle]').addEventListener('click', function () {
+          var body = card.querySelector('[data-pb-body]');
+          body.style.display = body.style.display === 'none' ? 'block' : 'none';
+        });
+        return card;
+      }
+      function sendTask(text) {
+        var r = C.sendToAgent(text);
+        if (r.ok && r.via !== 'bridge') window.alert('任务已复制到剪贴板，请粘贴到对话窗发送');
+      }
+      function articlePlaybook() {
+        var methods = [
+          ['访谈式', '有经历没结构——一次只问一个问题，挖细节后成稿'],
+          ['大纲式', '有观点没展开——先落带字数配额的大纲（含边界节）再扩写'],
+          ['续写式', '写一半卡住——先诊断卡点再续，选题立不住就换角度'],
+          ['整合式', '一堆零散材料——逐条压成一句，找共同主线，舍得删'],
+          ['破题式', '主题定角度没定——出 5-8 个角度，挑「只有你能写」的'],
+          ['重写式', '成稿不满意——先输出病灶清单，定点手术不整体润色'],
+        ];
+        var tags = methods.map(function (m) { return '<span class="cw-pbTag" data-w="' + m[0] + '" title="' + C.esc(m[1]) + '">' + m[0] + '</span>'; }).join('');
+        var card = pbCard('公众号 · 六种写法路由（先诊断你手上有什么）', '<div class="cw-pbRow">' + tags + '</div><div class="cw-sub" style="margin-top:4px">五约束：开头独立成立 · 手机屏单段≤90字 · 超2000字分小节 · 订阅者视角 · 单一结尾动作。AI腔黑名单：本质上/说白了、「不是X而是Y」≤1次、三段排比结尾。</div>');
+        var btns = card.querySelectorAll('.cw-pbTag');
+        methods.forEach(function (m, i) {
+          btns[i].addEventListener('click', function () {
+            sendTask('【公众号写作任务】当前主题按「' + m[0] + '」写法处理（' + m[1] + '）。完成 wechat/article.md，过五约束与 AI 腔黑名单质检后停在下一个人工闸门。');
+          });
+        });
+        return card;
+      }
+      function xhsPlaybook() {
+        var types = ['种草测评', '干货教程', '个人故事', '合集清单', '避雷拔草', '好物分享', '经验复盘'];
+        var tags = types.map(function (t) { return '<span class="cw-pbTag" data-t="' + t + '">' + t + '</span>'; }).join('');
+        var card = pbCard('小红书 · 7 类型 / 标题 / 标签', '<div class="cw-pbRow">' + tags + '</div><div class="cw-pbRow" style="margin-top:4px"><button class="cw-pbTag" id="cw-xhs-title-gen">生成标题候选（15法→3-5条→xhs/titles.md）</button></div><div class="cw-sub" style="margin-top:4px">文体：开头3行生死线 · 段落1-3行 · 第一人称 · emoji当分隔符。标签三层：大词引流1-2 / 中词精准3-4（涨粉主力）/ 小词卡位3-5。红线：没真实做过不写「亲测/实测/坚持了X个月」；功效词/绝对化动笔就改。</div>');
+        var btns = card.querySelectorAll('.cw-pbTag');
+        types.forEach(function (t, i) {
+          btns[i].addEventListener('click', function () {
+            sendTask('【小红书写作任务】当前主题按「' + t + '」类型写 xhs/post.md：开头3行生死线、段落1-3行、第一人称、三层标签（大词1-2/中词3-4/小词3-5）、功效词与绝对化动笔就改。');
+          });
+        });
+        card.querySelector('#cw-xhs-title-gen').addEventListener('click', function () {
+          sendTask('【小红书标题任务】为当前主题的小红书文案按 15 种标题法生成 3-5 个候选并评分（搜索词覆盖/人群指向性/收藏动机），标合规风险；结果写入 xhs/titles.md。红线：没真实做过不写「亲测/实测」。');
+        });
+        return card;
+      }
+      function videoPlaybook() {
+        var card = pbCard('视频 · 去AI味口播 + 秒级分镜', '<div class="cw-pbRow"><select id="cw-video-ratio" style="padding:4px 6px;border-radius:6px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit;font-size:11px"><option value="竖屏 3:4">竖屏 3:4（视频号）</option><option value="横屏 16:9">横屏 16:9（B站/公众号）</option></select><button class="cw-pbTag" id="cw-video-script">写秒级分镜（script.md）</button></div><div class="cw-sub" style="margin-top:4px">口播先能念再精确：拆长句、去书面连接词、打破排比，判断标准=读出声。分镜精确到秒（时间/口播/画面/呈现/转场），供 scenes/captions 取用。动手前定平台与比例。</div>');
+        card.querySelector('#cw-video-script').addEventListener('click', function () {
+          var ratio = card.querySelector('#cw-video-ratio').value;
+          sendTask('【视频脚本任务】当前主题按' + ratio + '写 video/script.md：口播先去 AI 味（能念出口），再精确到秒分镜表（时间/口播/画面/呈现/转场），标注字幕文本、动画点、B-roll 需求。');
+        });
+        return card;
+      }
+
       function renderEditor(key) {
         var host = el('cw-content');
         host.innerHTML = '';
@@ -241,20 +327,29 @@
             similarityBusy = false; renderEditor(key);
           });
         }
-        var grid = C.h('<div class="cw-editor"></div>');
         var ta = C.h('<textarea class="cw-textarea" placeholder="在这里编辑…"></textarea>');
         ta.value = value;
-        var pv = C.h('<div class="cw-preview">' + preview(value) + '</div>');
+        var pv = C.h('<div class="cw-preview" style="display:none">' + preview(value) + '</div>');
         ta.addEventListener('input', function () {
           drafts[field] = ta.value;
           pv.innerHTML = preview(ta.value);
           setBadge('cw-save', '未保存', false);
           scheduleSave();
         });
-        grid.appendChild(ta);
-        grid.appendChild(pv);
-        host.appendChild(grid);
+        var modeBar = C.h('<div class="cw-toolbar" style="margin-top:6px"><button class="dshell-btn dshell-btnGhost" id="cw-mode-toggle">👁 预览</button><span class="cw-sub cw-grow">编辑全宽 · 点击「预览」切换</span></div>');
+        host.appendChild(modeBar);
+        host.appendChild(ta);
+        host.appendChild(pv);
         el('cw-save-now').addEventListener('click', function () { void saveNow(field); });
+        el('cw-mode-toggle').addEventListener('click', function () {
+          var previewOn = ta.style.display === 'none';
+          ta.style.display = previewOn ? 'block' : 'none';
+          pv.style.display = previewOn ? 'none' : 'block';
+          el('cw-mode-toggle').textContent = previewOn ? '✎ 编辑' : '👁 预览';
+        });
+        if (key === 'article') host.appendChild(articlePlaybook());
+        if (key === 'xhs') host.appendChild(xhsPlaybook());
+        if (key === 'video') host.appendChild(videoPlaybook());
       }
 
       function scheduleSave() {
@@ -339,15 +434,28 @@
 
         renderCardThumbs(host);
 
-        var grid = C.h('<div class="cw-editor"></div>');
         var field = 'xhsCopy';
         var value = drafts[field] !== undefined ? drafts[field] : (detail[field] || '');
         var ta = C.h('<textarea class="cw-textarea" placeholder="小红书文案…"></textarea>');
         ta.value = value;
-        ta.addEventListener('input', function () { drafts[field] = ta.value; setBadge('cw-save', '未保存', false); scheduleSave(); });
-        grid.appendChild(ta);
-        grid.appendChild(C.h('<div class="cw-preview">' + preview(value) + '</div>'));
-        host.appendChild(grid);
+        var pv = C.h('<div class="cw-preview" style="display:none">' + preview(value) + '</div>');
+        ta.addEventListener('input', function () {
+          drafts[field] = ta.value;
+          pv.innerHTML = preview(ta.value);
+          setBadge('cw-save', '未保存', false);
+          scheduleSave();
+        });
+        var modeBar = C.h('<div class="cw-toolbar" style="margin-top:6px"><button class="dshell-btn dshell-btnGhost" id="cw-mode-toggle">👁 预览</button><span class="cw-sub cw-grow">编辑全宽 · 点击「预览」切换</span></div>');
+        host.appendChild(modeBar);
+        host.appendChild(ta);
+        host.appendChild(pv);
+        el('cw-mode-toggle').addEventListener('click', function () {
+          var previewOn = ta.style.display === 'none';
+          ta.style.display = previewOn ? 'block' : 'none';
+          pv.style.display = previewOn ? 'none' : 'block';
+          el('cw-mode-toggle').textContent = previewOn ? '✎ 编辑' : '👁 预览';
+        });
+        host.appendChild(xhsPlaybook());
 
         // 待执行清单（PENDING.md）
         if (!cardsReady) {
@@ -418,21 +526,28 @@
           bar.appendChild(C.badge('相似度 ' + Math.round(sim * 100) + '%', sim < 0.3));
         }
         host.appendChild(bar);
-        var grid = C.h('<div class="cw-editor"></div>');
         var field = 'videoScript';
         var value = drafts[field] !== undefined ? drafts[field] : (detail[field] || '');
         var ta = C.h('<textarea class="cw-textarea" placeholder="00:00 开场：…"></textarea>');
         ta.value = value;
-        var pv = C.h('<div class="cw-preview">' + preview(value) + '</div>');
+        var pv = C.h('<div class="cw-preview" style="display:none">' + preview(value) + '</div>');
         ta.addEventListener('input', function () {
           drafts[field] = ta.value;
           pv.innerHTML = preview(ta.value);
           setBadge('cw-save', '未保存', false);
           scheduleSave();
         });
-        grid.appendChild(ta);
-        grid.appendChild(pv);
-        host.appendChild(grid);
+        var modeBar = C.h('<div class="cw-toolbar" style="margin-top:6px"><button class="dshell-btn dshell-btnGhost" id="cw-mode-toggle">👁 预览</button><span class="cw-sub cw-grow">编辑全宽 · 点击「预览」切换</span></div>');
+        host.appendChild(modeBar);
+        host.appendChild(ta);
+        host.appendChild(pv);
+        el('cw-mode-toggle').addEventListener('click', function () {
+          var previewOn = ta.style.display === 'none';
+          ta.style.display = previewOn ? 'block' : 'none';
+          pv.style.display = previewOn ? 'none' : 'block';
+          el('cw-mode-toggle').textContent = previewOn ? '✎ 编辑' : '👁 预览';
+        });
+        host.appendChild(videoPlaybook());
         genBtn.addEventListener('click', async function () {
           try { detail = await C.runStage(detail.id, 'video'); renderVideo(); }
           catch (err) { showError(err); }
@@ -473,6 +588,19 @@
         void load();
       });
       C.onRevision(function () { if (current) void load(); });
+      // 按需聚焦（本窗 = 主行第 2 列）
+      var focused = false;
+      el('cw-focus').addEventListener('click', function () {
+        focused = !focused;
+        C.focusPane('main', 1, 0.7, !focused);
+        el('cw-focus').textContent = focused ? '⛶ 还原' : '⛶ 聚焦';
+      });
+      // 流水线导航联动（窗口1 点击 → 本窗切标签）
+      C.onNavTarget(function (target) {
+        if (!target) return;
+        var map = { 'window3:brief': 'brief', 'window3:article': 'article', 'window3:xhs': 'xhs', 'window3:video': 'video', 'window3:publish': 'publish' };
+        if (map[target] && map[target] !== tab) { tab = map[target]; renderTabs(); renderContent(); }
+      });
     })();
   </script>
 </body>

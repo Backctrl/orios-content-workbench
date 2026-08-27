@@ -22,6 +22,15 @@
     .cw-btnrow { display: flex; gap: 8px; margin-top: 8px; }
     .cw-plats { display: flex; flex-direction: column; gap: 4px; }
     .cw-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+    .cw-nav { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border-top: 1px solid rgba(128,128,128,.18); flex-wrap: wrap; }
+    .cw-stage { display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(128,128,128,.25); background: transparent; color: inherit; border-radius: 7px; padding: 3px 8px; cursor: pointer; font-size: 11px; }
+    .cw-stage:hover { border-color: rgba(124,140,255,.5); }
+    .cw-stage .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(128,128,128,.4); flex: none; }
+    .cw-stage.done { border-color: rgba(63,185,80,.45); }
+    .cw-stage.done .dot { background: #3fb950; }
+    .cw-stage.active { border-color: rgba(210,153,34,.7); background: rgba(210,153,34,.12); }
+    .cw-stage.active .dot { background: #d29922; }
+    .cw-navHint { margin-left: auto; font-size: 10px; color: #6e7683; }
   </style>
 </head>
 <body>
@@ -44,6 +53,13 @@
         <span class="dshell-badge" id="cw-plat-d">—</span>
         <button class="dshell-btn dshell-btnGhost cw-toggle" id="cw-toggle-publish">发布清单</button>
       </div>
+    </div>
+
+    <!-- 工作流流水线导航 -->
+    <div class="cw-nav" id="cw-nav">
+      <span class="cw-sub" style="margin-right:2px">工作流</span>
+      <div id="cw-nav-stages" style="display:contents"></div>
+      <span class="cw-navHint" id="cw-nav-hint"></span>
     </div>
 
     <div class="cw-err" id="cw-error" style="display:none"></div>
@@ -102,9 +118,46 @@
           settings = await C.getSettings();
           var configuredCount = (settings.statuses || []).filter(function (s) { return s.status === 'configured'; }).length;
           setBadge('cw-providers', 'Provider ' + configuredCount + '/' + (settings.statuses || []).length, configuredCount > 0);
+          await renderNav();
           if (current) await loadTopic();
           el('cw-error').style.display = 'none';
         } catch (err) { showError(err); }
+      }
+
+      // —— 工作流流水线导航 ——
+      async function hasIntelReports(contentRoot) {
+        if (!contentRoot) return false;
+        try {
+          var r = await fetch('/api/worktable/fs', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: contentRoot + '/_工作台/情报' }) });
+          var d = await r.json().catch(function () { return { entries: [] }; });
+          return (d.entries || []).some(function (e) { return !e.isDir; });
+        } catch { return false; }
+      }
+      async function hasReviewReport(topicFolder) {
+        if (!topicFolder) return false;
+        try { await C.readFile(topicFolder + '/publish/review.md'); return true; }
+        catch { return false; }
+      }
+      async function renderNav() {
+        var host = el('cw-nav-stages');
+        host.innerHTML = '';
+        var caps = await C.getCapabilities();
+        var contentRoot = caps.repositoryMode === 'file' ? (caps.contentRoot || '') : '';
+        var hasIntel = await hasIntelReports(contentRoot);
+        var hasReview = false;
+        if (current && folder) hasReview = await hasReviewReport(folder);
+        var st = C.pipelineStatus(detail || (current ? { approvals: [] } : null), hasIntel, hasReview);
+        st.items.forEach(function (it) {
+          var b = C.h('<button class="cw-stage" data-stage="' + it[0] + '"><span class="dot"></span>' + C.esc(it[1]) + '</button>');
+          if (st.done[it[0]]) b.classList.add('done');
+          if (it[0] === st.active) b.classList.add('active');
+          b.title = '跳转到「' + it[1] + '」';
+          b.addEventListener('click', function () { C.setNavTarget(it[2]); });
+          host.appendChild(b);
+        });
+        el('cw-nav-hint').textContent = current
+          ? ('当前：' + (C.STAGE_LABEL[detail ? detail.stage : ''] || '') + ' · 下一步：' + (st.items.filter(function (i) { return !st.done[i[0]]; })[0] ? st.items.filter(function (i) { return !st.done[i[0]]; })[0][1] : '全部完成'))
+          : '未选择主题（情报 → 选题 → …）';
       }
 
       async function loadTopic() {
@@ -125,6 +178,7 @@
           setBadge('cw-plat-d', '抖音/视频号 ' + (dReady ? '就绪' : '缺'), dReady);
           renderPlats(pkgReady);
           renderPending();
+          await renderNav();
         } catch (err) { showError(err); }
       }
 

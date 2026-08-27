@@ -30,6 +30,7 @@
       <span class="dshell-badge" id="cw-root">—</span>
       <span class="dshell-badge" id="cw-profile">—</span>
       <span class="dshell-badge dshell-badgeDone" id="cw-sync">实时同步开</span>
+      <button class="dshell-btn dshell-btnGhost" id="cw-focus" style="margin-left:auto" title="按需聚焦：放大本窗，再点恢复均分">⛶ 聚焦</button>
     </div>
 
     <div class="dshell-grid" style="margin-top:12px">
@@ -39,13 +40,15 @@
     </div>
 
     <div class="dshell-tabs" style="margin-top:14px">
-      <button class="dshell-tab dshell-tabOn" data-tab="topics">主题</button>
+      <button class="dshell-tab" data-tab="topics">主题</button>
       <button class="dshell-tab" data-tab="candidates">选题库</button>
-      <button class="dshell-tab" data-tab="todo">待办</button>
+      <button class="dshell-tab" data-tab="intel">情报台</button>
+      <button class="dshell-tab" data-tab="review">复盘台</button>
+      <button class="dshell-tab dshell-tabOn" data-tab="todo">待办</button>
     </div>
 
     <!-- 主题 -->
-    <div id="cw-pane-topics">
+    <div id="cw-pane-topics" style="display:none">
       <div class="cw-toolbar">
         <input id="cw-search" placeholder="搜索主题…" style="flex:1;min-width:120px;padding:7px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit" />
         <button class="dshell-btn" id="cw-create">＋ 新建主题</button>
@@ -54,6 +57,48 @@
       </div>
       <div class="cw-sub" id="cw-topics-summary" style="margin:6px 0"></div>
       <div id="cw-topics-list"></div>
+    </div>
+
+    <!-- 情报台 -->
+    <div id="cw-pane-intel" style="display:none">
+      <div class="cw-sub" style="margin:10px 0 6px">选题前的平台情报：搜热点 / 挖爆款 / 看评论 / 拆竞品。真实数据优先，拿不到就标注「未经数据验证」，不编造互动量级。</div>
+      <div class="cw-form">
+        <input id="cw-intel-keyword" placeholder="关键词 / 赛道（如：AI 工作流、Codex、独立创作者）" />
+        <div class="cw-btnrow">
+          <button class="dshell-btn" id="cw-intel-run">发起赛道调研</button>
+          <span class="cw-sub cw-grow" id="cw-intel-msg"></span>
+        </div>
+      </div>
+      <div class="dshell-divider" style="margin:12px 0"></div>
+      <h2 class="dshell-sub" style="margin:0 0 4px">情报报告（_工作台/情报/）</h2>
+      <div class="cw-sub" style="margin:4px 0">点击报告查看内容；「转选题」把报告候选加入选题库。</div>
+      <div id="cw-intel-list"></div>
+    </div>
+
+    <!-- 复盘台 -->
+    <div id="cw-pane-review" style="display:none">
+      <div class="cw-sub" style="margin:10px 0 6px">发布后复盘：录六层漏斗数据 → 生成复盘（Agent 归因 + 八维体检）→ 回写候选池。</div>
+      <div class="cw-form">
+        <label style="font-size:11px;color:#9da3ad">复盘主题</label>
+        <select id="cw-review-topic" style="padding:7px 9px;border-radius:8px;border:1px solid rgba(128,128,128,.35);background:rgba(255,255,255,.04);color:inherit;font:inherit"></select>
+        <div class="cw-row" style="flex-wrap:wrap;gap:6px">
+          <input id="cw-review-expo" placeholder="曝光" style="width:14%" />
+          <input id="cw-review-click" placeholder="点击" style="width:14%" />
+          <input id="cw-review-read" placeholder="完读" style="width:14%" />
+          <input id="cw-review-inter" placeholder="互动" style="width:14%" />
+          <input id="cw-review-follow" placeholder="涨粉" style="width:14%" />
+          <input id="cw-review-conv" placeholder="转化" style="width:14%" />
+        </div>
+        <div class="cw-btnrow">
+          <button class="dshell-btn" id="cw-review-save">保存数据到 publish/review.md</button>
+          <button class="dshell-btn dshell-btnGhost" id="cw-review-gen">生成复盘</button>
+          <button class="dshell-btn dshell-btnGhost" id="cw-review-back">回写候选池</button>
+          <span class="cw-sub cw-grow" id="cw-review-msg"></span>
+        </div>
+      </div>
+      <div class="dshell-divider" style="margin:12px 0"></div>
+      <h2 class="dshell-sub" style="margin:0 0 4px">复盘报告（publish/review.md）</h2>
+      <div id="cw-review-report"></div>
     </div>
 
     <!-- 选题库 -->
@@ -84,12 +129,14 @@
     (function () {
       'use strict';
       var C = window.CW;
-      var tab = 'topics';
+      var tab = 'todo';
       var board = false;
       var query = '';
       var projects = [];
       var candidates = [];
       var profile = {};
+      var contentRoot = '';
+      var focused = false;
 
       function el(id) { return document.getElementById(id); }
       function setBadge(id, text, done) {
@@ -225,8 +272,97 @@
         renderTopics();
         renderCandidates();
         renderTodo();
+        renderIntel();
+        renderReview();
         el('cw-error').style.display = 'none';
       }
+
+      // —— 情报台 ——
+      function topicFolder(id) {
+        var p = projects.filter(function (x) { return x.id === id; })[0];
+        if (!p || !contentRoot) return '';
+        return contentRoot + '/' + p.month + '/' + p.plannedAt + '_' + p.slug;
+      }
+      async function renderIntel() {
+        var list = el('cw-intel-list');
+        if (!list) return;
+        list.innerHTML = '';
+        if (!contentRoot) { list.appendChild(C.h('<div class="cw-sub">contentRoot 未配置（mock 模式）。</div>')); return; }
+        try {
+          var d = await C.listDir(contentRoot + '/_工作台/情报');
+          var files = (d.entries || []).filter(function (e) { return !e.isDir && /\.md$/i.test(e.name); });
+          if (files.length === 0) {
+            list.appendChild(C.h('<div class="cw-sub">暂无情报报告：上方输入关键词发起调研。</div>'));
+            return;
+          }
+          files.sort(function (a, b) { return b.name.localeCompare(a.name); }).forEach(function (e) {
+            var item = C.h('<div class="dshell-listItem"><span class="dshell-listItemTitle" style="cursor:pointer"></span></div>');
+            item.querySelector('.dshell-listItemTitle').textContent = e.name;
+            item.appendChild(C.badge('情报', false));
+            var b = C.h('<button class="dshell-btn dshell-btnGhost" style="margin-left:8px">转选题</button>');
+            b.addEventListener('click', async function (ev) {
+              ev.stopPropagation();
+              try {
+                await C.addCandidate({ title: e.name.replace(/\.md$/i, ''), claim: '（情报报告候选，见报告正文）', sourceKind: 'file', sourceRef: '_工作台/情报/' + e.name });
+                el('cw-intel-msg').textContent = '已加入选题库：' + e.name;
+                await refresh();
+              } catch (err) { el('cw-intel-msg').textContent = err.message; }
+            });
+            item.appendChild(b);
+            var detail = C.h('<div class="cw-detail"><pre style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:#9da3ad;margin:0;font-family:inherit"></pre></div>');
+            item.appendChild(detail);
+            item.querySelector('.dshell-listItemTitle').addEventListener('click', async function () {
+              detail.classList.toggle('open');
+              if (detail.classList.contains('open') && !detail.dataset.loaded) {
+                try { detail.querySelector('pre').textContent = await C.readFile(contentRoot + '/_工作台/情报/' + e.name); detail.dataset.loaded = '1'; }
+                catch (err) { detail.querySelector('pre').textContent = '读取失败：' + err.message; }
+              }
+            });
+            list.appendChild(item);
+          });
+        } catch { list.appendChild(C.h('<div class="cw-sub">读取情报目录失败。</div>')); }
+      }
+
+      // —— 复盘台 ——
+      async function renderReview() {
+        var sel = el('cw-review-topic');
+        if (!sel) return;
+        var cur = sel.value || '';
+        sel.innerHTML = '';
+        projects.slice().sort(function (a, b) { return b.plannedAt.localeCompare(a.plannedAt); }).forEach(function (p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.title + (C.gatesOf(p).publish_package ? ' ✓' : '');
+          sel.appendChild(opt);
+        });
+        if (cur && projects.some(function (p) { return p.id === cur; })) sel.value = cur;
+        var report = el('cw-review-report');
+        report.innerHTML = '';
+        var id = sel.value;
+        if (!id) { report.appendChild(C.h('<div class="cw-sub">还没有主题。</div>')); return; }
+        var folder = topicFolder(id);
+        if (!folder) { report.appendChild(C.h('<div class="cw-sub">mock 模式无真实目录。</div>')); return; }
+        try {
+          var text = await C.readFile(folder + '/publish/review.md');
+          report.appendChild(C.h('<pre style="white-space:pre-wrap;font-size:11px;line-height:1.7;color:#9da3ad;margin:0;font-family:inherit">' + C.esc(text) + '</pre>'));
+        } catch {
+          report.appendChild(C.h('<div class="cw-sub">暂无复盘报告：录入上方数据后点「保存数据」再「生成复盘」。</div>'));
+        }
+      }
+
+      function reviewPayload(id) {
+        var folder = topicFolder(id);
+        var fields = { expo: '曝光', click: '点击', read: '完读', inter: '互动', follow: '涨粉', conv: '转化' };
+        var lines = ['# 发布复盘', '', '主题：' + (projects.filter(function (p) { return p.id === id; })[0] || { title: id }).title, '', '| 漏斗层 | 数值 |', '|---|---|'];
+        Object.keys(fields).forEach(function (k) {
+          var v = el('cw-review-' + k).value.trim();
+          if (v) lines.push('| ' + fields[k] + ' | ' + v + ' |');
+          else lines.push('| ' + fields[k] + ' | （未录） |');
+        });
+        lines.push('', '## 复盘结论（Agent 生成：六层漏斗归因 + 八维体检）', '');
+        return lines.join('\n');
+      }
+
 
       function showError(err) {
         var node = el('cw-error');
@@ -245,6 +381,7 @@
         try {
           var caps = await C.getCapabilities();
           profile = { repositoryMode: caps.repositoryMode, contentRootConfigured: caps.contentRootConfigured };
+          contentRoot = caps.repositoryMode === 'file' ? (caps.contentRoot || '') : '';
           profile.profileConfigured = (await C.getProfile()).configured;
           projects = await C.listProjects();
           candidates = await C.listCandidates();
@@ -257,14 +394,69 @@
         }
       }
 
+      function switchTab(name) {
+        tab = name;
+        document.querySelectorAll('.dshell-tab').forEach(function (b) { b.classList.toggle('dshell-tabOn', b.getAttribute('data-tab') === name); });
+        ['topics', 'candidates', 'intel', 'review', 'todo'].forEach(function (n) { el('cw-pane-' + n).style.display = n === name ? 'block' : 'none'; });
+      }
+
       document.querySelectorAll('.dshell-tab').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          tab = btn.getAttribute('data-tab');
-          document.querySelectorAll('.dshell-tab').forEach(function (b) { b.classList.remove('dshell-tabOn'); });
-          btn.classList.add('dshell-tabOn');
-          ['topics', 'candidates', 'todo'].forEach(function (name) { el('cw-pane-' + name).style.display = name === tab ? 'block' : 'none'; });
-        });
+        btn.addEventListener('click', function () { switchTab(btn.getAttribute('data-tab')); });
       });
+      // 流水线导航联动（窗口1 点击 → 本窗切标签）
+      C.onNavTarget(function (target) {
+        if (target === 'window2:intel') switchTab('intel');
+        else if (target === 'window2:topics') switchTab('topics');
+        else if (target === 'window2:review') switchTab('review');
+        else if (target === 'window2:todo' || target === 'window2:candidates') switchTab(target === 'window2:candidates' ? 'candidates' : 'todo');
+      });
+      el('cw-focus').addEventListener('click', function () {
+        focused = !focused;
+        C.focusPane('main', 0, 0.7, !focused);
+        el('cw-focus').textContent = focused ? '⛶ 还原' : '⛶ 聚焦';
+      });
+      el('cw-intel-run').addEventListener('click', function () {
+        var kw = el('cw-intel-keyword').value.trim();
+        var msg = el('cw-intel-msg');
+        if (!kw) { msg.textContent = '请填写关键词 / 赛道'; return; }
+        msg.textContent = '已发送给 Agent…（完成后报告出现在下方列表）';
+        var text = '【情报调研任务】请对关键词/赛道「' + kw + '」做平台情报调研（搜热点/挖爆款/看评论/拆竞品，可用 web 搜索）。真实数据优先；拿不到互动数据就标注「未经数据验证」，禁止编造互动量级。完成后把报告写入 contentRoot/_工作台/情报/（文件名：YYYY-MM-DD_' + kw + '.md），frontmatter 含 关键词/日期/数据源状态，正文含热点清单、爆款共性、可转选题候选。';
+        var r = C.sendToAgent(text);
+        if (!r.ok) msg.textContent = r.message;
+      });
+      el('cw-review-save').addEventListener('click', async function () {
+        var id = el('cw-review-topic').value;
+        var msg = el('cw-review-msg');
+        if (!id) { msg.textContent = '请先选择复盘主题'; return; }
+        var folder = topicFolder(id);
+        if (!folder) { msg.textContent = 'mock 模式无真实目录'; return; }
+        msg.textContent = '保存中…';
+        try { await C.writeFile(folder + '/publish/review.md', reviewPayload(id)); msg.textContent = '已保存 publish/review.md'; await renderReview(); }
+        catch (err) { msg.textContent = err.message; }
+      });
+      el('cw-review-gen').addEventListener('click', function () {
+        var id = el('cw-review-topic').value;
+        var msg = el('cw-review-msg');
+        if (!id) { msg.textContent = '请先选择复盘主题'; return; }
+        msg.textContent = '已发送给 Agent…（完成后下方报告自动更新）';
+        var p = projects.filter(function (x) { return x.id === id; })[0] || {};
+        var text = '【复盘任务】主题「' + p.title + '」（' + topicFolder(id) + '）：请读取 publish/review.md 的发布数据，按六层漏斗（曝光→点击→完读→互动→涨粉→转化）定位卡点层并归因，再按八维体检（定位/选题/标题/正文/封面/标签/发布节奏/数据复盘）诊断；把可复用标题公式/选题公式单列一节。结论回写 publish/review.md 的「复盘结论」节。有缺失数据就标注缺失，不编造。';
+        var r = C.sendToAgent(text);
+        if (!r.ok) msg.textContent = r.message;
+      });
+      el('cw-review-back').addEventListener('click', async function () {
+        var id = el('cw-review-topic').value;
+        var msg = el('cw-review-msg');
+        if (!id) { msg.textContent = '请先选择复盘主题'; return; }
+        var formula = window.prompt('要回写候选池的可复用公式（标题公式/选题公式）');
+        if (!formula || !formula.trim()) return;
+        try {
+          await C.addCandidate({ title: '复盘公式：' + formula.trim().slice(0, 40), claim: formula.trim(), sourceKind: 'file', sourceRef: topicFolder(id) + '/publish/review.md' });
+          msg.textContent = '已回写候选池';
+          await refresh();
+        } catch (err) { msg.textContent = err.message; }
+      });
+      el('cw-review-topic').addEventListener('change', function () { void renderReview(); });
       el('cw-view-toggle').addEventListener('click', function () {
         board = !board;
         el('cw-view-toggle').textContent = board ? '列表视图' : '看板视图';
